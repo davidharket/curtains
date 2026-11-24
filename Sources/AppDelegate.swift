@@ -69,7 +69,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTe
         changeButton.controlSize = .small
         changeButton.attributedTitle = NSAttributedString(string: "Change Password", attributes: [
             .font: NSFont.systemFont(ofSize: NSFont.smallSystemFontSize),
-            .foregroundColor: NSColor.linkColor,
+            .foregroundColor: NSColor.labelColor,
             .underlineStyle: NSUnderlineStyle.single.rawValue
         ])
         changeButton.action = #selector(changePassword)
