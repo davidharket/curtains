@@ -10,7 +10,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTe
     private let current = NSSecureTextField()
     private let heading = NSTextField(labelWithString: "")
     private let primary = NSButton()
-    private let secondary = NSButton()
+    private let headerActionButton = NSButton()
     private let setupPassword = NSSecureTextField()
     private let confirmation = NSSecureTextField()
     private let message = NSTextField(wrappingLabelWithString: "")
@@ -57,29 +57,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTe
         current.action = #selector(focusNewPassword)
         setupPassword.action = #selector(focusConfirmation)
         confirmation.action = #selector(savePassword)
-        for button in [primary, secondary] {
+        for button in [primary, headerActionButton] {
             button.bezelStyle = .rounded
             button.target = self
         }
         primary.action = #selector(primaryAction)
-        secondary.action = #selector(secondaryAction)
-        let buttons = NSStackView(views: [primary, secondary])
-        buttons.spacing = 8
+        headerActionButton.action = #selector(headerAction)
+        primary.controlSize = .large
+        let header = NSStackView(views: [logo, NSView(), headerActionButton])
+        header.orientation = .horizontal
+        header.alignment = .centerY
         let footnote = NSTextField(wrappingLabelWithString: "Quitting the curtain reveals your desktop.")
         footnote.font = .systemFont(ofSize: 12)
         footnote.textColor = .secondaryLabelColor
         for label in [heading, message, footnote] { label.alignment = .left }
-        let stack = NSStackView(views: [logo, heading, message, current, setupPassword, confirmation, buttons, footnote])
+        let stack = NSStackView(views: [header, heading, message, current, setupPassword, confirmation, primary, footnote])
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 9
-        stack.setCustomSpacing(4, after: logo)
+        stack.setCustomSpacing(4, after: header)
         stack.setCustomSpacing(6, after: heading)
         stack.setCustomSpacing(12, after: message)
         stack.translatesAutoresizingMaskIntoConstraints = false
         let view = window.contentView!
         view.addSubview(stack)
         NSLayoutConstraint.activate([
+            primary.widthAnchor.constraint(greaterThanOrEqualToConstant: 144),
+            primary.heightAnchor.constraint(greaterThanOrEqualToConstant: 30),
+            header.widthAnchor.constraint(equalTo: stack.widthAnchor),
             logo.widthAnchor.constraint(equalToConstant: 40),
             logo.heightAnchor.constraint(equalTo: logo.widthAnchor),
             stack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 28),
@@ -115,32 +120,42 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTe
         current.isHidden = mode != .change
         setupPassword.isHidden = !editing
         confirmation.isHidden = !editing
-        secondary.isHidden = mode != .ready && mode != .change
+        headerActionButton.isHidden = mode == .unavailable
+        headerActionButton.title = editing ? "Save Password" : "Change Password"
+        primary.isHidden = mode == .create
+        primary.isBordered = mode != .ready
+        primary.wantsLayer = true
+        primary.layer?.cornerRadius = 6
+        primary.layer?.backgroundColor = mode == .ready ? NSColor.systemBlue.cgColor : nil
+        primary.contentTintColor = mode == .ready ? .white : nil
+        primary.keyEquivalent = mode == .ready ? "\r" : ""
         message.textColor = .secondaryLabelColor
         let height: CGFloat
         switch mode {
         case .create:
             heading.stringValue = "Set a password"
             message.stringValue = "Choose a password to lift the curtain when you return."
-            primary.title = "Save Password"
-            height = 286
+            height = 258
         case .ready:
             heading.stringValue = "Ready to draw the curtain?"
             message.stringValue = "Your password is saved on this Mac."
             primary.title = "Activate Curtains"
-            secondary.title = "Change Password"
             height = 218
         case .change:
             heading.stringValue = "Change password"
             message.stringValue = "Enter your current password and choose a new one."
-            primary.title = "Save Password"
-            secondary.title = "Cancel"
+            primary.title = "Cancel"
             height = 326
         case .unavailable:
             heading.stringValue = "Password unavailable"
             message.stringValue = "Curtains couldn’t read the saved password on this Mac."
             primary.title = "Try Again"
             height = 218
+        }
+        if mode == .ready {
+            primary.attributedTitle = NSAttributedString(string: primary.title, attributes: [
+                .foregroundColor: NSColor.white, .font: NSFont.systemFont(ofSize: 14, weight: .semibold)
+            ])
         }
         setupPassword.placeholderString = mode == .change ? "New password (8+ characters)" : "Password (8+ characters)"
         setupPassword.setAccessibilityLabel(setupPassword.placeholderString)
@@ -152,7 +167,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTe
     }
 
     private func updateSaveButton() {
-        primary.isEnabled = (mode != .create && mode != .change) ||
+        headerActionButton.isEnabled = (mode != .create && mode != .change) ||
             (setupPassword.stringValue.count >= 8 && setupPassword.stringValue == confirmation.stringValue &&
              (mode != .change || !current.stringValue.isEmpty))
     }
@@ -164,15 +179,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTe
 
     @objc private func primaryAction() {
         switch mode {
-        case .create, .change: savePassword()
+        case .create: break
+        case .change: reload()
         case .ready: activateCurtains()
         case .unavailable: reload()
         }
     }
 
-    @objc private func secondaryAction() {
+    @objc private func headerAction() {
         if mode == .ready { show(.change) }
-        else if mode == .change { reload() }
+        else { savePassword() }
     }
 
     private func showError(_ text: String) {
@@ -181,7 +197,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTe
     }
 
     @objc private func savePassword() {
-        guard (mode == .create || mode == .change), primary.isEnabled else { return }
+        guard (mode == .create || mode == .change), headerActionButton.isEnabled else { return }
         if mode == .change {
             switch saved?.check(current.stringValue) {
             case .accepted: break

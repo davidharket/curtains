@@ -24,9 +24,13 @@ private final class UnlockField: NSSecureTextField {
     }
 }
 
+private final class UnlockButton: NSButton {
+    override var alignmentRectInsets: NSEdgeInsets { .init() }
+}
+
 final class CurtainWindow: NSWindow {
     let passwordField: NSSecureTextField = UnlockField()
-    private let unlockButton = NSButton()
+    private let unlockButton = UnlockButton()
     let mascots = MascotWalk()
     private var idleTimer: Timer?
     var onSubmit: ((String) -> Void)?
@@ -61,11 +65,15 @@ final class CurtainWindow: NSWindow {
         passwordField.action = #selector(submit)
         passwordField.translatesAutoresizingMaskIntoConstraints = false
         surface.addSubview(passwordField)
-        unlockButton.image = NSImage(systemSymbolName: "arrow.right.square.fill", accessibilityDescription: nil)
-        unlockButton.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 18, weight: .medium)
+        unlockButton.image = NSImage(systemSymbolName: "arrow.right", accessibilityDescription: nil)
+        unlockButton.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 12, weight: .bold)
         unlockButton.imagePosition = .imageOnly
         unlockButton.isBordered = false
-        unlockButton.contentTintColor = .secondaryLabelColor
+        unlockButton.wantsLayer = true
+        unlockButton.layer?.backgroundColor = NSColor.darkGray.cgColor
+        unlockButton.layer?.cornerRadius = 5
+        unlockButton.layer?.cornerCurve = .continuous
+        unlockButton.contentTintColor = .white
         unlockButton.setAccessibilityLabel("Unlock curtain")
         unlockButton.target = self
         unlockButton.action = #selector(submit)
@@ -82,10 +90,10 @@ final class CurtainWindow: NSWindow {
             passwordField.centerXAnchor.constraint(equalTo: surface.centerXAnchor),
             passwordField.centerYAnchor.constraint(equalTo: surface.centerYAnchor),
             passwordField.widthAnchor.constraint(equalToConstant: 260),
-            unlockButton.trailingAnchor.constraint(equalTo: passwordField.trailingAnchor, constant: -4),
+            unlockButton.trailingAnchor.constraint(equalTo: passwordField.trailingAnchor, constant: -5),
             unlockButton.centerYAnchor.constraint(equalTo: passwordField.centerYAnchor),
-            unlockButton.widthAnchor.constraint(equalToConstant: 24),
-            unlockButton.heightAnchor.constraint(equalToConstant: 24)
+            unlockButton.widthAnchor.constraint(equalToConstant: 20),
+            unlockButton.heightAnchor.constraint(equalTo: unlockButton.widthAnchor)
         ])
         initialFirstResponder = nil
         // Keep secure keyboard entry confined to the time someone is typing.
