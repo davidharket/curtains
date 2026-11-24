@@ -1,4 +1,5 @@
 import AppKit
+import IOKit.pwr_mgt
 
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTextFieldDelegate {
     private var setup: NSWindow?
@@ -21,6 +22,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTe
     private var curtains: [NSNumber: CurtainWindow] = [:]
     private var savedPresentation: NSApplication.PresentationOptions = []
     private var activity = AgentActivity()
+    private var idleSleepAssertion: IOPMAssertionID?
     private var activityTimer: DispatchSourceTimer?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -207,6 +209,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTe
         guard mode == .ready, password == nil, !NSScreen.screens.isEmpty else { return }
         do {
             guard let secret = try store.load() else { reload(); return }
+            var assertion = IOPMAssertionID()
+            let status = IOPMAssertionCreateWithName(
+                kIOPMAssertPreventUserIdleSystemSleep as CFString, IOPMAssertionLevel(kIOPMAssertionLevelOn),
+                "Keeping this Mac awake while Curtains is active" as CFString, &assertion)
+            guard status == kIOReturnSuccess else {
+                showError("Couldn’t keep this Mac awake. Try activating Curtains again.")
+                return
+            }
+            idleSleepAssertion = assertion
             password = secret
         } catch {
             show(.unavailable)
@@ -230,6 +241,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTe
         timer.resume()
         setup?.orderOut(nil)
     }
+
+    private func releaseIdleSleepAssertion() {
+        guard let assertion = idleSleepAssertion else { return }
+        IOPMAssertionRelease(assertion)
+        idleSleepAssertion = nil
+    }
+
+    func applicationWillTerminate(_ notification: Notification) { releaseIdleSleepAssertion() }
 
     func applicationDidChangeScreenParameters(_ notification: Notification) { reconcileDisplays() }
 
@@ -275,6 +294,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTe
         let hint: String
         switch result {
         case .accepted:
+            releaseIdleSleepAssertion()
             activityTimer?.cancel()
             activityTimer = nil
             password = nil

@@ -7,11 +7,15 @@ Curtains covers the displays on your Mac while your signed-in session keeps runn
 ## Using the app
 
 1. Open Curtains, enter a password of at least eight characters, confirm it, and click **Save Password**. Your desktop stays visible.
-2. Click **Activate Curtains** when you want to cover your displays. Keep the Mac awake and try a task through your existing remote agent connection before you leave. Tools that rely on the foreground screen can see the curtain.
+2. Click **Activate Curtains** when you want to cover your displays. Curtains keeps the Mac awake automatically. Try a task through your existing remote agent connection before you leave. Tools that rely on the foreground screen can see the curtain.
 3. Type your curtain password and press Return or click the arrow. Curtains exits and reveals your desktop.
 4. Next time you open Curtains, choose **Activate Curtains** to use the same password or **Change Password** to set a new one. Changing it requires your current password.
 
 Curtains stores a salted PBKDF2 password verifier in your macOS account’s Application Support directory. Your Mac stays signed in, and quitting the app or a crash exposes the desktop. Use the macOS lock screen when you need operating-system access control.
+
+## Keeping your Mac awake
+
+While the curtain is active, Curtains asks macOS to prevent idle system sleep. The display can turn off. Unlocking or quitting releases the request, and any Amphetamine session continues independently. For unattended work on a MacBook, leave the lid open and connect power. Closing the lid, choosing Sleep, or a critically low battery can still put the Mac to sleep.
 
 ## Build from source
 
