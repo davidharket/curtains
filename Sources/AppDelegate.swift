@@ -10,7 +10,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTe
     private let current = NSSecureTextField()
     private let heading = NSTextField(labelWithString: "")
     private let primary = NSButton()
-    private let headerActionButton = NSButton()
+    private let saveButton = NSButton()
+    private let changeButton = NSButton()
     private let setupPassword = NSSecureTextField()
     private let confirmation = NSSecureTextField()
     private let message = NSTextField(wrappingLabelWithString: "")
@@ -57,25 +58,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTe
         current.action = #selector(focusNewPassword)
         setupPassword.action = #selector(focusConfirmation)
         confirmation.action = #selector(savePassword)
-        for button in [primary, headerActionButton] {
+        for button in [primary, saveButton, changeButton] {
             button.bezelStyle = .rounded
             button.target = self
         }
         primary.action = #selector(primaryAction)
-        headerActionButton.action = #selector(headerAction)
+        saveButton.title = "Save Password"
+        saveButton.action = #selector(savePassword)
+        changeButton.isBordered = false
+        changeButton.controlSize = .small
+        changeButton.attributedTitle = NSAttributedString(string: "Change Password", attributes: [
+            .font: NSFont.systemFont(ofSize: NSFont.smallSystemFontSize),
+            .foregroundColor: NSColor.linkColor,
+            .underlineStyle: NSUnderlineStyle.single.rawValue
+        ])
+        changeButton.action = #selector(changePassword)
         primary.controlSize = .large
-        let header = NSStackView(views: [logo, NSView(), headerActionButton])
-        header.orientation = .horizontal
-        header.alignment = .centerY
         let footnote = NSTextField(wrappingLabelWithString: "Quitting the curtain reveals your desktop.")
         footnote.font = .systemFont(ofSize: 12)
         footnote.textColor = .secondaryLabelColor
         for label in [heading, message, footnote] { label.alignment = .left }
-        let stack = NSStackView(views: [header, heading, message, current, setupPassword, confirmation, primary, footnote])
+        let stack = NSStackView(views: [logo, heading, message, current, setupPassword, confirmation, saveButton, primary, changeButton, footnote])
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 9
-        stack.setCustomSpacing(4, after: header)
+        stack.setCustomSpacing(4, after: logo)
         stack.setCustomSpacing(6, after: heading)
         stack.setCustomSpacing(12, after: message)
         stack.translatesAutoresizingMaskIntoConstraints = false
@@ -84,7 +91,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTe
         NSLayoutConstraint.activate([
             primary.widthAnchor.constraint(greaterThanOrEqualToConstant: 144),
             primary.heightAnchor.constraint(greaterThanOrEqualToConstant: 30),
-            header.widthAnchor.constraint(equalTo: stack.widthAnchor),
             logo.widthAnchor.constraint(equalToConstant: 40),
             logo.heightAnchor.constraint(equalTo: logo.widthAnchor),
             stack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 28),
@@ -120,8 +126,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTe
         current.isHidden = mode != .change
         setupPassword.isHidden = !editing
         confirmation.isHidden = !editing
-        headerActionButton.isHidden = mode == .unavailable
-        headerActionButton.title = editing ? "Save Password" : "Change Password"
+        saveButton.isHidden = !editing
+        changeButton.isHidden = mode != .ready
         primary.isHidden = mode == .create
         primary.isBordered = mode != .ready
         primary.wantsLayer = true
@@ -135,17 +141,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTe
         case .create:
             heading.stringValue = "Set a password"
             message.stringValue = "Choose a password to lift the curtain when you return."
-            height = 258
+            height = 280
         case .ready:
             heading.stringValue = "Ready to draw the curtain?"
             message.stringValue = "Your password is saved on this Mac."
             primary.title = "Activate Curtains"
-            height = 218
+            height = 244
         case .change:
             heading.stringValue = "Change password"
             message.stringValue = "Enter your current password and choose a new one."
             primary.title = "Cancel"
-            height = 326
+            height = 350
         case .unavailable:
             heading.stringValue = "Password unavailable"
             message.stringValue = "Curtains couldn’t read the saved password on this Mac."
@@ -167,7 +173,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTe
     }
 
     private func updateSaveButton() {
-        headerActionButton.isEnabled = (mode != .create && mode != .change) ||
+        saveButton.isEnabled = (mode != .create && mode != .change) ||
             (setupPassword.stringValue.count >= 8 && setupPassword.stringValue == confirmation.stringValue &&
              (mode != .change || !current.stringValue.isEmpty))
     }
@@ -186,10 +192,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTe
         }
     }
 
-    @objc private func headerAction() {
-        if mode == .ready { show(.change) }
-        else { savePassword() }
-    }
+    @objc private func changePassword() { show(.change) }
 
     private func showError(_ text: String) {
         message.textColor = .systemRed
@@ -197,7 +200,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTe
     }
 
     @objc private func savePassword() {
-        guard (mode == .create || mode == .change), headerActionButton.isEnabled else { return }
+        guard (mode == .create || mode == .change), saveButton.isEnabled else { return }
         if mode == .change {
             switch saved?.check(current.stringValue) {
             case .accepted: break
