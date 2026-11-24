@@ -74,11 +74,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTe
         ])
         changeButton.action = #selector(changePassword)
         primary.controlSize = .large
-        let footnote = NSTextField(wrappingLabelWithString: "Quitting the curtain reveals your desktop.")
+        let footnote = NSTextField(wrappingLabelWithString: "Shutting down your Mac ends the Curtains session. Quitting the app reveals your desktop.")
         footnote.font = .systemFont(ofSize: 12)
         footnote.textColor = .secondaryLabelColor
         for label in [heading, message, footnote] { label.alignment = .left }
-        let stack = NSStackView(views: [logo, heading, message, current, setupPassword, confirmation, saveButton, primary, changeButton, footnote])
+        let stack = NSStackView(views: [logo, heading, message, current, setupPassword, confirmation, saveButton, primary, footnote, changeButton])
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 9
