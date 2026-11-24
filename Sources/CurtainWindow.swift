@@ -61,7 +61,7 @@ final class CurtainWindow: NSWindow {
         passwordField.action = #selector(submit)
         passwordField.translatesAutoresizingMaskIntoConstraints = false
         surface.addSubview(passwordField)
-        unlockButton.image = NSImage(systemSymbolName: "arrow.right.circle.fill", accessibilityDescription: nil)
+        unlockButton.image = NSImage(systemSymbolName: "arrow.right.square.fill", accessibilityDescription: nil)
         unlockButton.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 18, weight: .medium)
         unlockButton.imagePosition = .imageOnly
         unlockButton.isBordered = false

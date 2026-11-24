@@ -3,8 +3,12 @@ import Foundation
 import Security
 
 struct SessionPassword {
-    private let salt: [UInt8]
-    private let digest: [UInt8]
+    struct Verifier: Codable, Equatable {
+        let salt: [UInt8]
+        let digest: [UInt8]
+    }
+
+    let verifier: Verifier
     private var failures = 0
     private var nextAttempt: TimeInterval = 0
 
@@ -12,16 +16,20 @@ struct SessionPassword {
         var bytes = [UInt8](repeating: 0, count: 16)
         guard SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes) == errSecSuccess,
               let key = Self.derive(password, salt: bytes) else { return nil }
-        salt = bytes
-        digest = key
+        verifier = Verifier(salt: bytes, digest: key)
+    }
+
+    init?(verifier: Verifier) {
+        guard verifier.salt.count == 16, verifier.digest.count == 32 else { return nil }
+        self.verifier = verifier
     }
 
     enum Result { case accepted, rejected, wait(Int) }
 
     mutating func check(_ candidate: String, now: TimeInterval = ProcessInfo.processInfo.systemUptime) -> Result {
         if now < nextAttempt { return .wait(Int(ceil(nextAttempt - now))) }
-        if let trial = Self.derive(candidate, salt: salt),
-           zip(trial, digest).reduce(UInt8(0), { $0 | ($1.0 ^ $1.1) }) == 0 {
+        if let trial = Self.derive(candidate, salt: verifier.salt),
+           zip(trial, verifier.digest).reduce(UInt8(0), { $0 | ($1.0 ^ $1.1) }) == 0 {
             return .accepted
         }
         failures += 1

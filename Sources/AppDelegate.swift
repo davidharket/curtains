@@ -2,10 +2,21 @@ import AppKit
 
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTextFieldDelegate {
     private var setup: NSWindow?
+    private enum Mode { case create, ready, change, unavailable }
+    private let store: PasswordStore
+    private var mode = Mode.create
+    private var saved: SessionPassword?
+    private let current = NSSecureTextField()
+    private let heading = NSTextField(labelWithString: "")
+    private let primary = NSButton()
+    private let secondary = NSButton()
     private let setupPassword = NSSecureTextField()
     private let confirmation = NSSecureTextField()
     private let message = NSTextField(wrappingLabelWithString: "")
-    private let setupHint = "Confirm your password to activate the curtain."
+    init(store: PasswordStore = PasswordStore()) {
+        self.store = store
+        super.init()
+    }
     private var password: SessionPassword?
     private var curtains: [NSNumber: CurtainWindow] = [:]
     private var savedPresentation: NSApplication.PresentationOptions = []
@@ -15,7 +26,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTe
     func applicationDidFinishLaunching(_ notification: Notification) {
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 412, height: 268),
             styleMask: [.titled, .closable], backing: .buffered, defer: false)
-        window.title = "Skjermgardin"
+        window.title = "Curtains"
         window.delegate = self
         window.isRestorable = false
         window.isReleasedWhenClosed = false
@@ -25,15 +36,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTe
         logo.image = Bundle.main.url(forResource: "Skjermgardin", withExtension: "icns").flatMap(NSImage.init(contentsOf:))
         logo.imageScaling = .scaleProportionallyUpOrDown
         logo.setAccessibilityElement(false)
-        let heading = NSTextField(labelWithString: "Set a password")
         heading.font = .systemFont(ofSize: 23, weight: .semibold)
-        message.stringValue = setupHint
         message.font = .systemFont(ofSize: 13)
         message.textColor = .secondaryLabelColor
         setupPassword.placeholderString = "Password (8+ characters)"
         confirmation.placeholderString = "Confirm password"
-        setupPassword.setAccessibilityHelp(setupHint)
-        for field in [setupPassword, confirmation] {
+        current.placeholderString = "Current password"
+        for field in [current, setupPassword, confirmation] {
             field.setAccessibilityLabel(field.placeholderString)
             field.controlSize = .large
             field.font = .systemFont(ofSize: 15)
@@ -43,16 +52,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTe
             field.cell?.sendsActionOnEndEditing = false
             field.target = self
         }
+        current.action = #selector(focusNewPassword)
         setupPassword.action = #selector(focusConfirmation)
-        confirmation.action = #selector(arm)
-        setupPassword.nextKeyView = confirmation
-        confirmation.nextKeyView = setupPassword
-
+        confirmation.action = #selector(savePassword)
+        for button in [primary, secondary] {
+            button.bezelStyle = .rounded
+            button.target = self
+        }
+        primary.action = #selector(primaryAction)
+        secondary.action = #selector(secondaryAction)
+        let buttons = NSStackView(views: [primary, secondary])
+        buttons.spacing = 8
         let footnote = NSTextField(wrappingLabelWithString: "Quitting the curtain reveals your desktop.")
         footnote.font = .systemFont(ofSize: 12)
         footnote.textColor = .secondaryLabelColor
         for label in [heading, message, footnote] { label.alignment = .left }
-        let stack = NSStackView(views: [logo, heading, message, setupPassword, confirmation, footnote])
+        let stack = NSStackView(views: [logo, heading, message, current, setupPassword, confirmation, buttons, footnote])
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 9
@@ -68,8 +83,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTe
             stack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 28),
             stack.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -28),
             stack.centerYAnchor.constraint(equalTo: view.centerYAnchor)
-        ] + [message, setupPassword, confirmation, footnote].map { $0.widthAnchor.constraint(equalTo: stack.widthAnchor) })
-        window.initialFirstResponder = setupPassword
+        ] + [message, current, setupPassword, confirmation, footnote].map { $0.widthAnchor.constraint(equalTo: stack.widthAnchor) })
+        reload()
         if let screen = NSScreen.screens.first(where: { $0.frame.contains(NSEvent.mouseLocation) }) ?? NSScreen.main {
             let area = screen.visibleFrame
             let y = max(area.minY, area.midY - window.frame.height / 2)
@@ -79,42 +94,123 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTe
         NSApp.activate()
     }
 
-    func controlTextDidChange(_ notification: Notification) {
-        guard password == nil else { return }
-        message.stringValue = setupHint
-        message.textColor = .secondaryLabelColor
-        let value = setupPassword.stringValue
-        let matches = value.count >= 8 && value == confirmation.stringValue
-        let editor = (notification.object as? NSTextField)?.currentEditor() as? NSTextView
-        guard matches, editor?.hasMarkedText() != true else { return }
-        arm()
+    private func reload() {
+        do {
+            saved = try store.load()
+            show(saved == nil ? .create : .ready)
+        } catch {
+            show(.unavailable)
+        }
     }
 
-    @objc private func focusConfirmation() { setup?.makeFirstResponder(confirmation) }
-
-    @objc private func arm() {
-        guard password == nil else { return }
-        guard setupPassword.stringValue.count >= 8 else {
-            message.textColor = .systemRed
-            message.stringValue = "Use at least 8 characters."
-            setup?.makeFirstResponder(setupPassword)
-            return
-        }
-        guard confirmation.stringValue == setupPassword.stringValue else {
-            message.textColor = .systemRed
-            message.stringValue = confirmation.stringValue.isEmpty ? "Enter your password again." : "The passwords don’t match. Try again."
-            confirmation.selectText(nil)
-            return
-        }
-        guard !NSScreen.screens.isEmpty, let secret = SessionPassword(setupPassword.stringValue) else {
-            message.textColor = .systemRed
-            message.stringValue = "Couldn’t activate the curtain. Try again."
-            return
-        }
-        password = secret
-        for field in [setupPassword, confirmation] {
+    private func show(_ newMode: Mode) {
+        mode = newMode
+        for field in [current, setupPassword, confirmation] {
             field.abortEditing()
             field.stringValue = ""
+        }
+        let editing = mode == .create || mode == .change
+        current.isHidden = mode != .change
+        setupPassword.isHidden = !editing
+        confirmation.isHidden = !editing
+        secondary.isHidden = mode != .ready && mode != .change
+        message.textColor = .secondaryLabelColor
+        let height: CGFloat
+        switch mode {
+        case .create:
+            heading.stringValue = "Set a password"
+            message.stringValue = "Choose a password to lift the curtain when you return."
+            primary.title = "Save Password"
+            height = 286
+        case .ready:
+            heading.stringValue = "Ready to draw the curtain?"
+            message.stringValue = "Your password is saved on this Mac."
+            primary.title = "Activate Curtains"
+            secondary.title = "Change Password"
+            height = 218
+        case .change:
+            heading.stringValue = "Change password"
+            message.stringValue = "Enter your current password and choose a new one."
+            primary.title = "Save Password"
+            secondary.title = "Cancel"
+            height = 326
+        case .unavailable:
+            heading.stringValue = "Password unavailable"
+            message.stringValue = "Curtains couldn’t read the saved password on this Mac."
+            primary.title = "Try Again"
+            height = 218
+        }
+        setupPassword.placeholderString = mode == .change ? "New password (8+ characters)" : "Password (8+ characters)"
+        setupPassword.setAccessibilityLabel(setupPassword.placeholderString)
+        updateSaveButton()
+        setup?.setContentSize(NSSize(width: 412, height: height))
+        let focus: NSView = editing ? (mode == .change ? current : setupPassword) : primary
+        setup?.initialFirstResponder = focus
+        setup?.makeFirstResponder(focus)
+    }
+
+    private func updateSaveButton() {
+        primary.isEnabled = (mode != .create && mode != .change) ||
+            (setupPassword.stringValue.count >= 8 && setupPassword.stringValue == confirmation.stringValue &&
+             (mode != .change || !current.stringValue.isEmpty))
+    }
+
+    func controlTextDidChange(_ notification: Notification) { updateSaveButton() }
+
+    @objc private func focusNewPassword() { setup?.makeFirstResponder(setupPassword) }
+    @objc private func focusConfirmation() { setup?.makeFirstResponder(confirmation) }
+
+    @objc private func primaryAction() {
+        switch mode {
+        case .create, .change: savePassword()
+        case .ready: activateCurtains()
+        case .unavailable: reload()
+        }
+    }
+
+    @objc private func secondaryAction() {
+        if mode == .ready { show(.change) }
+        else if mode == .change { reload() }
+    }
+
+    private func showError(_ text: String) {
+        message.textColor = .systemRed
+        message.stringValue = text
+    }
+
+    @objc private func savePassword() {
+        guard (mode == .create || mode == .change), primary.isEnabled else { return }
+        if mode == .change {
+            switch saved?.check(current.stringValue) {
+            case .accepted: break
+            case .wait(let seconds): showError("Try again in \(seconds) s."); return
+            default: showError("The current password is incorrect."); return
+            }
+        }
+        guard let secret = SessionPassword(setupPassword.stringValue) else {
+            showError("Couldn’t save your password. Try again.")
+            return
+        }
+        do {
+            try store.save(secret, replacing: saved)
+            saved = secret
+            show(.ready)
+        } catch let error as CocoaError where error.code == .fileWriteFileExists {
+            reload()
+            showError("Your saved password changed in another window.")
+        } catch {
+            showError("Couldn’t save your password. Try again.")
+        }
+    }
+
+    private func activateCurtains() {
+        guard mode == .ready, password == nil, !NSScreen.screens.isEmpty else { return }
+        do {
+            guard let secret = try store.load() else { reload(); return }
+            password = secret
+        } catch {
+            show(.unavailable)
+            return
         }
         savedPresentation = NSApp.presentationOptions
         NSApp.presentationOptions = [.hideDock, .hideMenuBar, .disableProcessSwitching, .disableHideApplication]

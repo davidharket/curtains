@@ -6,11 +6,12 @@ Curtains covers the displays on your Mac while your signed-in session keeps runn
 
 ## Using the app
 
-1. Open Curtains and enter a password of at least eight characters. Confirm it to draw the curtain immediately across your connected displays.
-2. Keep the Mac awake. Before leaving, try a task through your existing remote agent connection. Tools that rely on the foreground screen can see the curtain.
-3. Type your curtain password and press Return or click the arrow. Curtains exits and reveals your desktop. Open it again to start a new session.
+1. Open Curtains, enter a password of at least eight characters, confirm it, and click **Save Password**. Your desktop stays visible.
+2. Click **Activate Curtains** when you want to cover your displays. Keep the Mac awake and try a task through your existing remote agent connection before you leave. Tools that rely on the foreground screen can see the curtain.
+3. Type your curtain password and press Return or click the arrow. Curtains exits and reveals your desktop.
+4. Next time you open Curtains, choose **Activate Curtains** to use the same password or **Change Password** to set a new one. Changing it requires your current password.
 
-The password verifier lives in memory for one session. Your Mac stays signed in, and quitting the app or a crash exposes the desktop. Use the macOS lock screen when you need operating-system access control.
+Curtains stores a salted PBKDF2 password verifier in your macOS account’s Application Support directory. Your Mac stays signed in, and quitting the app or a crash exposes the desktop. Use the macOS lock screen when you need operating-system access control.
 
 ## Build from source
 
